@@ -15859,16 +15859,21 @@ def todos_los_jugadores_de_europa():
     def normalizar_nombre(nombre):
         return str(nombre).strip()
 
+
     for categoria in ["senior", "sub19"]:
         categoria_europa = europa.get(categoria, {})
+
 
         for competicion_key in ["champions", "europa_league", "conference"]:
             competicion = categoria_europa.get(competicion_key, {})
 
+
             if not competicion:
                 continue
 
-            nombre_competicion = f"{competicion_key.replace('_', ' ').title()} {categoria.title()}"
+
+            categoria_nombre = "Sub-19" if categoria == "sub19" else categoria.title()
+            nombre_competicion = f"{competicion_key.replace('_', ' ').title()} {categoria_nombre}"
 
             for ronda in competicion.get("eliminatorias", []):
                 for cruce in ronda.get("cruces", []):
@@ -15961,6 +15966,16 @@ def todos_los_jugadores_de_europa():
                             stats[nombre]["Goles"] += nota.get("Goles", 0)
                             stats[nombre]["Asistencias"] += nota.get("Asistencias", 0)
                             stats[nombre]["Encajados"] += nota.get("Encajados", 0) or nota.get("goles_encajados", 0)
+
+
+    # Calcular encajados para porteros (FUERA del bucle for nota)
+    for datos in stats.values():
+        if datos["Pos"] == "POR":
+            jugador = obtener_datos_jugador(datos["Nombre"], datos["Equipo"])
+            datos["Encajados"] = jugador.get("goles_encajados", 0)
+        else:
+            datos["Encajados"] = 0
+
 
     if not stats:
         return pd.DataFrame()
@@ -16193,9 +16208,15 @@ def render_pestana_europa():
     st.divider()
     st.subheader("📊 Estadísticas europeas")
 
+    # Obtener categoría visible (Senior o Sub-19)
+    categoria_visible = st.session_state.get("europa_categoria", "Senior")
+
     dfj = todos_los_jugadores_de_europa()
 
     if not dfj.empty:
+        # Filtrar por la categoría visible
+        dfj = dfj[dfj["Competicion"].str.contains(categoria_visible, case=False, na=False)]
+
         tabs_stats = st.tabs(["Champions", "Europa League", "Conference"])
 
         for tab, competicion in zip(tabs_stats, ["Champions", "Europa League", "Conference"]):
@@ -16203,7 +16224,7 @@ def render_pestana_europa():
                 df_comp = dfj[dfj["Competicion"].str.contains(competicion, case=False, na=False)]
                 
                 if df_comp.empty:
-                    st.info(f"Aún no hay estadísticas de {competicion}.")
+                    st.info(f"Aún no hay estadísticas de {competicion} {categoria_visible}.")
                 else:
                     df_comp["Goles/Partido"] = df_comp.apply(lambda r: round(r["Goles"] / r["PJ"], 2) if r["PJ"] > 0 else 0, axis=1)
                     c1, c2, c3, c4 = st.columns(4)
